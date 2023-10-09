@@ -1,124 +1,118 @@
 import React from 'react';
 import axios from 'axios';
 import * as d3j from 'd3';
+import {scaleOrdinal} from 'd3'
 import Chart from 'chart.js/auto';
+// import { useEffect } from 'react';
 
 function HomePage() {
 
-    var dataSource  = {
+    var dataSource = {
         datasets: [
             {
                 data: [],
-                backgroundColor: [
-                    '#ffcd56',
-                    '#ff6384',
-                    '#36a2eb',
-                    '#fd6b19',
-                    '#33FFAF',
-                    '#FF3339',
-                    '#A8ADA9',
-                ]
+                backgroundColor: ['#ffcd56',
+                                '#ff6384',
+                                '#36a2eb',
+                                '#fd6b19',
+                                '#33FFAF',
+                                '#FF3339',
+                                '#A8ADA9',]}],
+        labels: []
+    };
+
+    React.useEffect(() => {
+        axios.get('http://localhost:3000/budget').then((response) => {
+            for (var i = 0; i < response.data.my_monthly_budget.length; i++) {
+                dataSource.datasets[0].data[i] = response.data.my_monthly_budget[i].budget;
+                dataSource.labels[i] = response.data.my_monthly_budget[i].title;
+            }
+            console.log(response.data.my_monthly_budget)
+            createChart();
+            createDonutChart(response.data.my_monthly_budget);
+        });
+      }, []);
+
+    function createChart() {
+        var ctx = document.getElementById('myChart').getContext('2d');
+        let chartStatus = Chart.getChart("myChart");
+
+        if (chartStatus !== undefined) {
+            chartStatus.destroy();
         }
-        ],
-          labels: []
-      };
-      var data;
-      var svg;
-    //   var color;
-      var height = 450;
-      var width = 960;
-      var radius = Math.min(width, height) / 2;
-
-      var cId = React.useRef(null);
-
-      function createChart(dataSource) {
-        //var ctx = document.getElementById("myChart").getContext("2d");
-        var ctx = document.getElementById("myChart");
+    
         var myPieChart = new Chart(ctx, {
             type: 'pie',
             data: dataSource
         });
-      }
-
-      function getBudget() {
-        
-        axios.get('http://localhost:3000/budget')
-        .then(function (res) {
-        
-
-            data = res.data.my_monthly_budget;
-            
-            // createColors();
-            createSvg();
-            drawChart();
-
-            for (var i = 0; i < res.data.my_monthly_budget.length; i++) {
-                dataSource.datasets[0].data[i] = res.data.my_monthly_budget[i].budget;
-                dataSource.labels[i] = res.data.my_monthly_budget[i].title
-            }
-
-                createChart(dataSource);
-            
-        });
     }
 
     
-        const color = d3j
-          .scale.ordinal()
-          .domain(data.map(d => d.title))
-          .range(dataSource.datasets[0].backgroundColor);
-      
+
+    function createDonutChart(data) {
+        d3j.select('#d3pie').selectAll('*').remove();
     
-      function createSvg() {
-        svg = d3j
-          .select("figure#d3pie")
-          .append('svg')
-          .attr('width', width)
-          .attr('height', height)
-          .append('g')
-          .attr(
-            'transform',
-            'translate(' + width / 2 + ',' + height / 2 + ')'
-          );
-      }
+       
+        const width = 400;
+        const height = 400;
+        const radius = Math.min(width, height) / 2;
+    
+        
+        const svg = d3j.select('#d3pie')
+            .append('svg')
+            .attr('width', width)
+            .attr('height', height)
+            .append('g')
+            .attr('transform', `translate(${width / 2},${height / 2})`);
+    
+    
+        const color = scaleOrdinal()
+            .domain(data.map(d => d.title))
+            .range(dataSource.datasets[0].backgroundColor);
+    
+        // Create a pie chart
+        const pie = d3j.pie()
+            .value(d => d.budget);
+    
+        
+        const arc = d3j.arc()
+            .innerRadius(radius * 0.4) 
+            .outerRadius(radius);
+    
+        
+        const path = svg.selectAll('path')
+            .data(pie(data))
+            .enter()
+            .append('path')
+            .attr('d', arc) 
+            .attr('fill', d => color(d.data.title));
+    
+        
+        path.append('text')
+            .attr('transform', d => `translate(${arc.centroid(d)})`)
+            .attr('dy', '0.35em')
+            .text(d => `${d.data.title}: $${d.data.budget}`); 
+        // Create a legend
+        const legend = svg.selectAll('.legend')
+            .data(data.map(d => d.title))
+            .enter()
+            .append('g')
+            .attr('class', 'legend')
+            .attr('transform', (d, i) => `translate(250, ${i * 20})`);
+    
+        legend.append('rect')
+            .attr('width', 21)
+            .attr('height', 21)
+            .style('fill', d => color(d));
+    
+        legend.append('text')
+            .attr('x', 24)
+            .attr('y', 9)
+            .attr('dy', '.35em')
+            .text(d => d);
+    }
 
-      function drawChart(){
-        const pie = d3j.pie().value((d) => Number(d.budget));
-
-
-      svg
-        .selectAll('p')
-        .data(pie(data))
-        .enter()
-        .append('path')
-        .attr('d', d3j.arc().innerRadius(0).outerRadius(radius))
-        .attr('fill', (d, i) => color(i))
-        .attr('stroke', '#FFFFFF')
-        .style('stroke-width', '1px');
-
-
-      const labelArc = d3j.arc()
-        .innerRadius(radius - 30)
-        .outerRadius(radius - 30);
-
-      svg
-        .selectAll('p')
-        .data(pie(data))
-        .enter()
-        .append('text')
-        .text((d) => d.data.title)
-        .attr('transform', (d) => 'translate(' + labelArc.centroid(d) + ')')
-        .style('text-anchor', 'middle')
-        .style('font-size', 12);
-      }
-
-      React.useEffect(() => {
-        if(!cId.current !== null){
-            getBudget();
-        }
-
-    }, []);
-
+    
 
 
   return (
@@ -187,7 +181,7 @@ function HomePage() {
                 <div className="text-box">
                     <h1>Monthly Budget Chart</h1>
                     <p>
-                        <canvas ref={cId} id="myChart" width="400" height="400"></canvas>
+                        <canvas id="myChart" width="400" height="400"></canvas>
                     </p>
                 </div>
                 <div id="d3-chart">
